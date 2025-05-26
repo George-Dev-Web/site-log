@@ -3,10 +3,16 @@ from sitelog.services import (
     create_project, list_projects, get_project, update_project, delete_project,
     create_daily_log, list_daily_logs, get_daily_log, update_daily_log, delete_daily_log
 )
+
 from sitelog.services import (
     create_worker, list_workers, get_worker, update_worker, delete_worker,
     
 )
+
+from sitelog.services import (
+    create_task, list_tasks, get_task, update_task, delete_task
+)
+
 
 
 @click.group()
@@ -182,3 +188,72 @@ def delete_worker_by_id(worker_id):
         click.echo(f'Worker {worker_id} deleted.')
     else:
         click.echo('Worker not found.')
+
+# --- Task CLI commands ---
+
+@cli.command()
+@click.option('--description', prompt='Task description')
+@click.option('--hours', type=float, prompt='Hours spent')
+@click.option('--status', prompt='Status (e.g., completed, pending)')
+@click.option('--log-id', type=int, prompt='Daily Log ID')
+@click.option('--worker-id', type=int, prompt='Worker ID')
+def add_task(description, hours, status, log_id, worker_id):
+    """Add a new task."""
+    task = create_task(description, hours, status, log_id, worker_id)
+    click.echo(f'Task created with ID: {task.id}')
+
+@cli.command()
+def show_tasks():
+    """List all tasks."""
+    tasks = list_tasks()
+    for t in tasks:
+        click.echo(f'{t.id}: {t.description} ({t.hours} hrs) - {t.status} | Log: {t.log_id} | Worker: {t.worker_id}')
+
+@cli.command()
+@click.argument('task_id', type=int)
+def get_task_by_id(task_id):
+    """Show task details by ID."""
+    task = get_task(task_id)
+    if task:
+        click.echo(f'ID: {task.id}')
+        click.echo(f'Description: {task.description}')
+        click.echo(f'Hours: {task.hours}')
+        click.echo(f'Status: {task.status}')
+        click.echo(f'Daily Log ID: {task.log_id}')
+        click.echo(f'Worker ID: {task.worker_id}')
+    else:
+        click.echo('Task not found.')
+
+@cli.command()
+@click.argument('task_id', type=int)
+@click.option('--description', default=None)
+@click.option('--hours', type=float, default=None)
+@click.option('--status', default=None)
+@click.option('--log-id', type=int, default=None)
+@click.option('--worker-id', type=int, default=None)
+def update_task_by_id(task_id, description, hours, status, log_id, worker_id):
+    """Update task details by ID."""
+    updates = {
+        k: v for k, v in [
+            ('description', description),
+            ('hours', hours),
+            ('status', status),
+            ('log_id', log_id),
+            ('worker_id', worker_id)
+        ] if v is not None
+    }
+    task = update_task(task_id, **updates)
+    if task:
+        click.echo(f'Task {task_id} updated.')
+    else:
+        click.echo('Task not found.')
+
+@cli.command()
+@click.argument('task_id', type=int)
+def delete_task_by_id(task_id):
+    """Delete a task by ID."""
+    success = delete_task(task_id)
+    if success:
+        click.echo(f'Task {task_id} deleted.')
+    else:
+        click.echo('Task not found.')

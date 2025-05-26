@@ -1,5 +1,5 @@
 from sitelog.db import SessionLocal
-from sitelog.models import DailyLog, Worker, Task
+from sitelog.models import Project, DailyLog, Worker, Task
 
 # --- DailyLog CRUD ---
 def create_daily_log(date, weather, summary, project_id):
