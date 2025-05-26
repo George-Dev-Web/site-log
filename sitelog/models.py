@@ -28,3 +28,31 @@ class DailyLog(Base):
 
     def __repr__(self):
         return f"<DailyLog(id={self.id}, date={self.date}, project_id={self.project_id})>"
+
+class Worker(Base):
+    __tablename__ = 'workers'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    trade = Column(String)
+    contact = Column(String)
+
+    def __repr__(self):
+        return f"<Worker(id={self.id}, name='{self.name}', trade='{self.trade}')>"
+
+class Task(Base):
+    __tablename__ = 'tasks'
+
+    id = Column(Integer, primary_key=True)
+    description = Column(String)
+    hours = Column(Integer)
+    status = Column(String)  # e.g., 'pending', 'completed'
+    log_id = Column(Integer, ForeignKey('daily_logs.id'))
+    worker_id = Column(Integer, ForeignKey('workers.id'))
+
+    log = relationship('DailyLog', backref='tasks')
+    worker = relationship('Worker', backref='tasks')
+
+    def __repr__(self):
+        return f"<Task(id={self.id}, desc='{self.description}', worker_id={self.worker_id})>"
+
