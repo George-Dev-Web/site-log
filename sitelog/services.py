@@ -1,6 +1,59 @@
 from sitelog.db import SessionLocal
 from sitelog.models import Project, DailyLog, Worker, Task
 
+# --- Project CRUD ---
+def create_project(name, location, start_date, end_date):
+    session = SessionLocal()
+    new_project = Project(
+        name=name,
+        location=location,
+        start_date=start_date,
+        end_date=end_date
+    )
+    session.add(new_project)
+    session.commit()
+    session.refresh(new_project)
+    session.close()
+    return new_project
+
+def get_project(project_id):
+    session = SessionLocal()
+    project = session.query(Project).filter(Project.id == project_id).first()
+    session.close()
+    return project
+
+def update_project(project_id, **kwargs):
+    session = SessionLocal()
+    project = session.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        session.close()
+        return None
+    for key, value in kwargs.items():
+        if hasattr(project, key):
+            setattr(project, key, value)
+    session.commit()
+    session.refresh(project)
+    session.close()
+    return project
+
+def delete_project(project_id):
+    session = SessionLocal()
+    project = session.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        session.close()
+        return False
+    session.delete(project)
+    session.commit()
+    session.close()
+    return True
+
+def list_projects():
+    session = SessionLocal()
+    projects = session.query(Project).all()
+    session.close()
+    return projects
+
+
 # --- DailyLog CRUD ---
 def create_daily_log(date, weather, summary, project_id):
     session = SessionLocal()

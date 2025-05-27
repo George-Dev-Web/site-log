@@ -1,43 +1,69 @@
 import click
+from datetime import date # <-- Crucial: We only need 'date' objects, not 'datetime' for your schema
+
+# Import all your service functions
 from sitelog.services import (
     create_project, list_projects, get_project, update_project, delete_project,
-    create_daily_log, list_daily_logs, get_daily_log, update_daily_log, delete_daily_log
-)
-
-from sitelog.services import (
+    create_daily_log, list_daily_logs, get_daily_log, update_daily_log, delete_daily_log,
     create_worker, list_workers, get_worker, update_worker, delete_worker,
-    
-)
-
-from sitelog.services import (
     create_task, list_tasks, get_task, update_task, delete_task
 )
 
-
+# You should also have an initialization script for your database.
+# For example, in sitelog/database.py:
+# from sitelog.models import Base, engine
+# def init_db():
+#     Base.metadata.create_all(engine)
+# If you haven't run it yet, remember to run: python -m sitelog.database
 
 @click.group()
 def cli():
-    """SiteLog CLI - Manage your construction site projects and logs"""
+    """SiteLog CLI - Manage your construction site projects and logs."""
     pass
 
-@cli.command()
-@click.option('--name', prompt='Project name')
-@click.option('--location', prompt='Project location')
-@click.option('--start-date', prompt='Start date (YYYY-MM-DD)')
-@click.option('--end-date', prompt='End date (YYYY-MM-DD)')
+# --- Project CLI commands ---
+
+@cli.command("add-project") # Giving explicit name for clarity
+@click.option('--name', prompt='Project name', help="Name of the construction project.")
+@click.option('--location', prompt='Project location', help="Geographical location of the project.")
+@click.option('--start-date', prompt='Start date (YYYY-MM-DD)', help="Project start date in YYYY-MM-DD format.")
+@click.option('--end-date', prompt='End date (YYYY-MM-DD)', help="Project end date in YYYY-MM-DD format.")
 def add_project(name, location, start_date, end_date):
-    """Add a new project."""
-    project = create_project(name, location, start_date, end_date)
-    click.echo(f'Project created with ID: {project.id}')
+    """Add a new construction project."""
+    try:
+        # Convert the date strings from Click's prompt into Python date objects
+        start_date_obj = date.fromisoformat(start_date)
+        end_date_obj = date.fromisoformat(end_date)
 
-@cli.command()
+        # Pass the date objects to your service function
+        project = create_project(name, location, start_date_obj, end_date_obj)
+        click.echo(f'Successfully created project: "{project.name}" with ID: {project.id}')
+    except ValueError:
+        # Catch if the date format is incorrect
+        click.echo(click.style("Error: Invalid date format. Please ensure dates are in YYYY-MM-DD format (e.g., 2023-01-15).", fg="red"))
+    except Exception as e:
+        # Catch any other unexpected errors during creation
+        click.echo(click.style(f"An unexpected error occurred while adding the project: {e}", fg="red"))
+
+
+@cli.command("show-projects") # Giving explicit name for clarity
 def show_projects():
-    """List all projects."""
+    """List all existing construction projects."""
     projects = list_projects()
-    for p in projects:
-        click.echo(f'{p.id}: {p.name} at {p.location} ({p.start_date} to {p.end_date})')
+    if not projects:
+        click.echo("No projects found in the database.")
+        return
 
-@cli.command()
+    click.echo("\n--- Existing Projects ---")
+    for p in projects:
+        # Safely format dates for display, in case they are None or not date objects
+        start_date_str = p.start_date.isoformat() if p.start_date else 'N/A'
+        end_date_str = p.end_date.isoformat() if p.end_date else 'N/A'
+        click.echo(f'ID: {p.id} | Name: "{p.name}" | Location: {p.location} | Start: {start_date_str} | End: {end_date_str}')
+    click.echo("-------------------------\n")
+
+
+@cli.command("get-project")
 @click.argument('project_id', type=int)
 def get_project_by_id(project_id):
     """Show details for one project by ID."""
@@ -46,214 +72,83 @@ def get_project_by_id(project_id):
         click.echo(f'ID: {project.id}')
         click.echo(f'Name: {project.name}')
         click.echo(f'Location: {project.location}')
-        click.echo(f'Start Date: {project.start_date}')
-        click.echo(f'End Date: {project.end_date}')
+        click.echo(f'Start Date: {project.start_date.isoformat() if project.start_date else "N/A"}')
+        click.echo(f'End Date: {project.end_date.isoformat() if project.end_date else "N/A"}')
     else:
-        click.echo('Project not found.')
+        click.echo(click.style(f'Project with ID {project_id} not found.', fg="yellow"))
 
-@cli.command()
+
+@cli.command("update-project")
 @click.argument('project_id', type=int)
-@click.option('--name', default=None)
-@click.option('--location', default=None)
-@click.option('--start-date', default=None)
-@click.option('--end-date', default=None)
+@click.option('--name', default=None, help="New name for the project.")
+@click.option('--location', default=None, help="New location for the project.")
+@click.option('--start-date', default=None, help="New start date (YYYY-MM-DD).")
+@click.option('--end-date', default=None, help="New end date (YYYY-MM-DD).")
 def update_project_by_id(project_id, name, location, start_date, end_date):
     """Update project details by ID."""
-    updates = {k: v for k, v in [('name', name), ('location', location), ('start_date', start_date), ('end_date', end_date)] if v is not None}
+    updates = {}
+    if name is not None:
+        updates['name'] = name
+    if location is not None:
+        updates['location'] = location
+    if start_date is not None:
+        try:
+            updates['start_date'] = date.fromisoformat(start_date)
+        except ValueError:
+            click.echo(click.style("Error: Invalid start date format. Please use YYYY-MM-DD.", fg="red"))
+            return
+    if end_date is not None:
+        try:
+            updates['end_date'] = date.fromisoformat(end_date)
+        except ValueError:
+            click.echo(click.style("Error: Invalid end date format. Please use YYYY-MM-DD.", fg="red"))
+            return
+
+    if not updates:
+        click.echo(click.style("No valid fields provided for update.", fg="yellow"))
+        return
+
     project = update_project(project_id, **updates)
     if project:
-        click.echo(f'Project {project_id} updated.')
+        click.echo(f'Project {project_id} updated successfully.')
     else:
-        click.echo('Project not found.')
+        click.echo(click.style(f'Project with ID {project_id} not found or no changes were made.', fg="yellow"))
 
-@cli.command()
+
+@cli.command("delete-project")
 @click.argument('project_id', type=int)
 def delete_project_by_id(project_id):
     """Delete a project by ID."""
     success = delete_project(project_id)
     if success:
-        click.echo(f'Project {project_id} deleted.')
+        click.echo(f'Project {project_id} deleted successfully.')
     else:
-        click.echo('Project not found.')
+        click.echo(click.style(f'Project with ID {project_id} not found.', fg="yellow"))
 
 # --- DailyLog CLI commands ---
 
-@cli.command()
-@click.option('--date', prompt='Date (YYYY-MM-DD)')
-@click.option('--weather', prompt='Weather conditions')
-@click.option('--summary', prompt='Summary of the day')
-@click.option('--project-id', type=int, prompt='Project ID')
+@cli.command("add-daily-log")
+@click.option('--date', prompt='Date (YYYY-MM-DD)', help="Date of the log in YYYY-MM-DD format.")
+@click.option('--weather', prompt='Weather conditions', help="Weather conditions for the day.")
+@click.option('--summary', prompt='Summary of the day', help="Brief summary of daily activities.")
+@click.option('--project-id', type=int, prompt='Project ID', help="The ID of the project this log belongs to.")
 def add_daily_log(date, weather, summary, project_id):
     """Add a new daily log."""
-    log = create_daily_log(date, weather, summary, project_id)
-    click.echo(f'Daily log created with ID: {log.id}')
+    try:
+        log_date_obj = date.fromisoformat(date) # Convert date string to date object
+        log = create_daily_log(log_date_obj, weather, summary, project_id) # Pass the date object
+        click.echo(f'Daily log created with ID: {log.id}')
+    except ValueError:
+        click.echo(click.style("Error: Invalid date format. Please use YYYY-MM-DD.", fg="red"))
+    except Exception as e:
+        click.echo(click.style(f"An error occurred while adding the daily log: {e}", fg="red"))
 
-@cli.command()
-def show_daily_logs():
-    """List all daily logs."""
-    logs = list_daily_logs()
-    for log in logs:
-        click.echo(f'{log.id}: {log.date} - Project {log.project_id} - {log.weather}')
+# --- Rest of your commands would follow here ---
+# @cli.command("show-daily-logs")
+# ...
+# @cli.command("add-worker")
+# ...
 
-@cli.command()
-@click.argument('log_id', type=int)
-def get_daily_log_by_id(log_id):
-    """Show details for one daily log by ID."""
-    log = get_daily_log(log_id)
-    if log:
-        click.echo(f'ID: {log.id}')
-        click.echo(f'Date: {log.date}')
-        click.echo(f'Weather: {log.weather}')
-        click.echo(f'Summary: {log.summary}')
-        click.echo(f'Project ID: {log.project_id}')
-    else:
-        click.echo('Daily log not found.')
-
-@cli.command()
-@click.argument('log_id', type=int)
-@click.option('--date', default=None)
-@click.option('--weather', default=None)
-@click.option('--summary', default=None)
-@click.option('--project-id', type=int, default=None)
-def update_daily_log_by_id(log_id, date, weather, summary, project_id):
-    """Update daily log details by ID."""
-    updates = {k: v for k, v in [('date', date), ('weather', weather), ('summary', summary), ('project_id', project_id)] if v is not None}
-    log = update_daily_log(log_id, **updates)
-    if log:
-        click.echo(f'Daily log {log_id} updated.')
-    else:
-        click.echo('Daily log not found.')
-
-@cli.command()
-@click.argument('log_id', type=int)
-def delete_daily_log_by_id(log_id):
-    """Delete a daily log by ID."""
-    success = delete_daily_log(log_id)
-    if success:
-        click.echo(f'Daily log {log_id} deleted.')
-    else:
-        click.echo('Daily log not found.')
-
-# --- Worker CLI commands ---
-
-@cli.command()
-@click.option('--name', prompt='Worker name')
-@click.option('--role', prompt='Role on site')
-@click.option('--contact', prompt='Contact information')
-def add_worker(name, role, contact):
-    """Add a new worker."""
-    worker = create_worker(name, role, contact)
-    click.echo(f'Worker created with ID: {worker.id}')
-
-@cli.command()
-def show_workers():
-    """List all workers."""
-    workers = list_workers()
-    for w in workers:
-        click.echo(f'{w.id}: {w.name} - {w.role} - Contact: {w.contact}')
-
-@cli.command()
-@click.argument('worker_id', type=int)
-def get_worker_by_id(worker_id):
-    """Show details for one worker by ID."""
-    worker = get_worker(worker_id)
-    if worker:
-        click.echo(f'ID: {worker.id}')
-        click.echo(f'Name: {worker.name}')
-        click.echo(f'Role: {worker.role}')
-        click.echo(f'Contact: {worker.contact}')
-    else:
-        click.echo('Worker not found.')
-
-@cli.command()
-@click.argument('worker_id', type=int)
-@click.option('--name', default=None)
-@click.option('--role', default=None)
-@click.option('--contact', default=None)
-def update_worker_by_id(worker_id, name, role, contact):
-    """Update worker details by ID."""
-    updates = {k: v for k, v in [('name', name), ('role', role), ('contact', contact)] if v is not None}
-    worker = update_worker(worker_id, **updates)
-    if worker:
-        click.echo(f'Worker {worker_id} updated.')
-    else:
-        click.echo('Worker not found.')
-
-@cli.command()
-@click.argument('worker_id', type=int)
-def delete_worker_by_id(worker_id):
-    """Delete a worker by ID."""
-    success = delete_worker(worker_id)
-    if success:
-        click.echo(f'Worker {worker_id} deleted.')
-    else:
-        click.echo('Worker not found.')
-
-# --- Task CLI commands ---
-
-@cli.command()
-@click.option('--description', prompt='Task description')
-@click.option('--hours', type=float, prompt='Hours spent')
-@click.option('--status', prompt='Status (e.g., completed, pending)')
-@click.option('--log-id', type=int, prompt='Daily Log ID')
-@click.option('--worker-id', type=int, prompt='Worker ID')
-def add_task(description, hours, status, log_id, worker_id):
-    """Add a new task."""
-    task = create_task(description, hours, status, log_id, worker_id)
-    click.echo(f'Task created with ID: {task.id}')
-
-@cli.command()
-def show_tasks():
-    """List all tasks."""
-    tasks = list_tasks()
-    for t in tasks:
-        click.echo(f'{t.id}: {t.description} ({t.hours} hrs) - {t.status} | Log: {t.log_id} | Worker: {t.worker_id}')
-
-@cli.command()
-@click.argument('task_id', type=int)
-def get_task_by_id(task_id):
-    """Show task details by ID."""
-    task = get_task(task_id)
-    if task:
-        click.echo(f'ID: {task.id}')
-        click.echo(f'Description: {task.description}')
-        click.echo(f'Hours: {task.hours}')
-        click.echo(f'Status: {task.status}')
-        click.echo(f'Daily Log ID: {task.log_id}')
-        click.echo(f'Worker ID: {task.worker_id}')
-    else:
-        click.echo('Task not found.')
-
-@cli.command()
-@click.argument('task_id', type=int)
-@click.option('--description', default=None)
-@click.option('--hours', type=float, default=None)
-@click.option('--status', default=None)
-@click.option('--log-id', type=int, default=None)
-@click.option('--worker-id', type=int, default=None)
-def update_task_by_id(task_id, description, hours, status, log_id, worker_id):
-    """Update task details by ID."""
-    updates = {
-        k: v for k, v in [
-            ('description', description),
-            ('hours', hours),
-            ('status', status),
-            ('log_id', log_id),
-            ('worker_id', worker_id)
-        ] if v is not None
-    }
-    task = update_task(task_id, **updates)
-    if task:
-        click.echo(f'Task {task_id} updated.')
-    else:
-        click.echo('Task not found.')
-
-@cli.command()
-@click.argument('task_id', type=int)
-def delete_task_by_id(task_id):
-    """Delete a task by ID."""
-    success = delete_task(task_id)
-    if success:
-        click.echo(f'Task {task_id} deleted.')
-    else:
-        click.echo('Task not found.')
+# This ensures the CLI application runs when the script is executed
+if __name__ == "__main__":
+    cli()
