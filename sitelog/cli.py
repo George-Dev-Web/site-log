@@ -6,6 +6,8 @@ from sitelog.services import (
     create_worker, list_workers, get_worker, update_worker, delete_worker,
     create_task, list_tasks, get_task, update_task, delete_task
 )
+from sitelog.models import Project
+from sitelog.db import session
 
 @click.group()
 def cli():
@@ -70,6 +72,43 @@ def update_project_by_id(project_id, name, location, start_date, end_date):
         click.echo(f"Project {project_id} updated.")
     else:
         click.echo(click.style("Project not found or update failed.", fg="yellow"))
+
+
+# DELETE PROJECT
+@cli.command()
+@click.argument("project_id", type=int)
+def delete_project(project_id):
+    """Delete a project by ID."""
+    project = session.query(Project).get(project_id)
+    if not project:
+        click.echo(f"❌ No project found with ID {project_id}")
+        return
+    session.delete(project)
+    session.commit()
+    click.echo(f"✅ Project ID {project_id} deleted successfully.")
+
+@cli.command()
+@click.argument("project_id", type=int)
+def get_project(project_id):
+    """Get a single project by ID."""
+    project = session.query(Project).filter(Project.id == project_id).first()
+    if project:
+        click.echo(f"📌 Project ID: {project.id}")
+        click.echo(f"🏗️  Name: {project.name}")
+        click.echo(f"🗓️  Start Date: {project.start_date}")
+        click.echo(f"📅 End Date: {project.end_date}")
+        click.echo(f"📍 Location: {project.location}")
+    else:
+        click.echo("❌ Project not found.")
+
+
+
+
+
+
+
+
+
 
 # ---------- Daily Logs ----------
 @cli.command("add-daily-log")
@@ -147,7 +186,8 @@ def show_workers():
 
     click.echo("\n--- Workers List ---")
     for w in workers:
-        click.echo(f'ID: {w.id} | Name: {w.name} | Role: {w.role} | Project ID: {w.project_id}')
+        click.echo(f'ID: {w.id} | Name: {w.name} | Trade: {w.trade} | Contact: {w.contact}')
+
     click.echo("---------------------\n")
 
 @cli.command("update-worker")

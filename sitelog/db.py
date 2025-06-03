@@ -21,3 +21,5 @@ def init_db():
 # This block makes the init_db() function run when the script is executed directly
 if __name__ == "__main__":
     init_db()
+
+session = SessionLocal()
